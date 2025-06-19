@@ -1,86 +1,49 @@
-//
-//  ContentView.swift
-//  accountingbook
-//
-//  Created by EatFan on 2025/6/9.
-//
-
 import SwiftUI
-import CoreData
 
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
+    // 账单数据管理对象，负责账单的增删查存储
+    @StateObject var store = BillStore()
+    // 控制是否弹出添加账单页面
+    @State private var showAdd = false
 
     var body: some View {
         NavigationView {
+            // 列表展示所有账单
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
+                ForEach(store.bills) { bill in
+                    // 每条账单的展示内容
+                    VStack(alignment: .leading) {
+                        Text("金额：\(bill.amount, specifier: "%.2f") 元")
+                        Text("备注：\(bill.note)")
+                        Text("日期：\(bill.date, formatter: dateFormatter)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
                     }
                 }
-                .onDelete(perform: deleteItems)
+                // 支持左滑删除账单
+                .onDelete(perform: store.delete)
             }
+            .navigationTitle("记账本") // 设置导航栏标题
             .toolbar {
+                // 右上角添加按钮，点击弹出添加账单页面
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                    Button(action: { showAdd = true }) {
+                        Image(systemName: "plus")
                     }
                 }
             }
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+            // 弹出添加账单页面
+            .sheet(isPresented: $showAdd) {
+                AddBillView(store: store, showAdd: $showAdd)
             }
         }
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
+// 日期格式化器，用于将日期对象转为字符串显示
+private let dateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateStyle = .short
+    f.timeStyle = .short
+    return f
 }()
-
-#Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
-}
